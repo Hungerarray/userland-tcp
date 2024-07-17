@@ -29,6 +29,23 @@ type EthHeader struct {
 	Ethertype EthType
 }
 
+func CreateEthFrame(ethHeader EthHeader, payload []byte) []byte {
+	frame := make([]byte, 0)
+	frame = append(frame, ethHeader.Dmac...)
+	frame = append(frame, ethHeader.Smac...)
+	frame = append(frame, ethHeader.Ethertype...)
+	frame = append(frame, payload...)
+	return frame
+}
+
+func CreateEthHeder(dmac, smac net.HardwareAddr, ethType EthType) EthHeader {
+	return EthHeader{
+		Dmac:      dmac,
+		Smac:      smac,
+		Ethertype: ethType,
+	}
+}
+
 func ParseEthFrame(b []byte) (*EthFrame, error) {
 	if len(b) < 14 {
 		return nil, ErrMalformedEthernetFrame
@@ -47,7 +64,7 @@ func parseEthHeader(b []byte) EthHeader {
 	}
 }
 
-func (ethH *EthHeader) String() string {
+func (ethH EthHeader) String() string {
 	var s strings.Builder
 
 	s.WriteString("\n== Eth Header start ===\n")

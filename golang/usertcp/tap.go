@@ -80,29 +80,36 @@ func CreateIfTAP(name string, mtu int) (*NativeTAP, error) {
 	}, nil
 }
 
-func (t *NativeTAP) SetIfMAC(hwaddr string) error {
+func (t *NativeTAP) SetIfMAC(hwaddr string) (net.HardwareAddr, error) {
 	dev, err := netlink.LinkByName(t.name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	haddr, err := net.ParseMAC(hwaddr)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return netlink.LinkSetHardwareAddr(dev, haddr)
+	if err = netlink.LinkSetHardwareAddr(dev, haddr); err != nil {
+		return nil, err
+	}
+	return haddr, nil
 }
 
-func (t *NativeTAP) SetIfRoute(cidr string) error {
+func (t *NativeTAP) SetIfRoute(cidr string) (net.IP, error) {
 	dev, err := netlink.LinkByName(t.name)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	addr, err := netlink.ParseAddr(cidr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return netlink.AddrAdd(dev, addr)
+	if err = netlink.AddrAdd(dev, addr); err != nil {
+		return nil, err
+	}
+
+	return addr.IP, nil
 }
 
 func (t *NativeTAP) SetIfUP() error {

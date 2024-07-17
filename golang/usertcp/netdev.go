@@ -2,6 +2,7 @@ package usertcp
 
 import (
 	"errors"
+	"net"
 )
 
 var (
@@ -10,8 +11,8 @@ var (
 )
 
 type NetDev struct {
-	Addr   string
-	HWAddr string
+	Addr   net.IP
+	HWAddr net.HardwareAddr
 	tap    *NativeTAP
 }
 
@@ -20,10 +21,12 @@ func NewNetDev(name, addr, hwaddr string) (*NetDev, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := tap.SetIfMAC(hwaddr); err != nil {
+	mac, err := tap.SetIfMAC(hwaddr)
+	if err != nil {
 		return nil, err
 	}
-	if err := tap.SetIfRoute(addr); err != nil {
+	ip, err := tap.SetIfRoute(addr)
+	if err != nil {
 		return nil, err
 	}
 	if err := tap.SetIfUP(); err != nil {
@@ -31,13 +34,25 @@ func NewNetDev(name, addr, hwaddr string) (*NetDev, error) {
 	}
 
 	resp := NetDev{
-		Addr:   addr,
-		HWAddr: hwaddr,
+		Addr:   ip,
+		HWAddr: mac,
 		tap:    tap,
 	}
 	return &resp, nil
 }
 
-func (nd *NetDev) Transmit() error {
-	panic("not implemented yet")
+func (nd *NetDev) Read(b []byte) (int, error) {
+	return nd.tap.Read(b)
+}
+
+func (nd *NetDev) Write(b []byte) (int, error) {
+	return nd.tap.Write(b)
+}
+
+func (nd *NetDev) Transmit(ethFrame EthFrame, ethType []byte, dst []byte) error {
+	ethFrame.Header.Ethertype = ethType
+	ethFrame.Header.Smac = nd.HWAddr
+	ethFrame.Header.Dmac = dst
+
+	nd.Write([]byte(ethFrame))
 }
