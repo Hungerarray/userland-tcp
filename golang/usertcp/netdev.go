@@ -1,9 +1,7 @@
 package usertcp
 
 import (
-	"encoding/binary"
 	"errors"
-	"net"
 )
 
 var (
@@ -12,30 +10,34 @@ var (
 )
 
 type NetDev struct {
-	Addr   uint32
-	HWAddr []byte
+	Addr   string
+	HWAddr string
+	tap    *NativeTAP
 }
 
-func NewNetDev(addr, hwaddr string) (*NetDev, error) {
-	ip := net.ParseIP(addr)
-	if ip == nil {
-		return nil, ErrParsingAddrFailed
-	}
-	b, err := ip.To4().MarshalText()
-	if err != nil {
-		return nil, ErrInvalidIPv4Addr
-	}
-	haddr, err := net.ParseMAC(hwaddr)
+func NewNetDev(name, addr, hwaddr string) (*NetDev, error) {
+	tap, err := CreateIfTAP(name, 1500)
 	if err != nil {
 		return nil, err
 	}
+	if err := tap.SetIfMAC(hwaddr); err != nil {
+		return nil, err
+	}
+	if err := tap.SetIfRoute(addr); err != nil {
+		return nil, err
+	}
+	if err := tap.SetIfUP(); err != nil {
+		return nil, err
+	}
+
 	resp := NetDev{
-		Addr:   binary.BigEndian.Uint32(b),
-		HWAddr: haddr,
+		Addr:   addr,
+		HWAddr: hwaddr,
+		tap:    tap,
 	}
 	return &resp, nil
 }
 
-func (nd *NetDev) Transmit(ethHdr *EthHeader, ethType uint16, dst []byte) error {
+func (nd *NetDev) Transmit() error {
 	panic("not implemented yet")
 }

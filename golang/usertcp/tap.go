@@ -2,6 +2,7 @@ package usertcp
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"sync"
 
@@ -12,17 +13,7 @@ import (
 // With reference from https://git.zx2c4.com/wireguard-go/tree/tun/tun_linux.go?id=12269c276173#n551
 const (
 	cloneDevicePath = "/dev/net/tun"
-	deviceCIDR      = "169.254.169.215/32"
 )
-
-type Device interface {
-	File() *os.File
-	Close() error
-	Name() string
-
-	Read(b []byte) (int, error)
-	Write(b []byte) (int, error)
-}
 
 type NativeTAP struct {
 	tapFile *os.File
@@ -55,7 +46,7 @@ func (t *NativeTAP) Write(b []byte) (int, error) {
 	return t.File().Write(b)
 }
 
-func CreateTAP(name string, mtu int) (Device, error) {
+func CreateIfTAP(name string, mtu int) (*NativeTAP, error) {
 	nfd, err := unix.Open(cloneDevicePath, unix.O_RDWR|unix.O_CLOEXEC, 0)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -83,24 +74,26 @@ func CreateTAP(name string, mtu int) (Device, error) {
 
 	fd := os.NewFile(uintptr(nfd), cloneDevicePath)
 
-	err = setIfRoute(name, deviceCIDR)
-	if err != nil {
-		return nil, err
-	}
-
-	err = setIfUP(name)
-	if err != nil {
-		return nil, err
-	}
-
 	return &NativeTAP{
 		tapFile: fd,
 		name:    name,
 	}, nil
 }
 
-func setIfRoute(name, cidr string) error {
-	dev, err := netlink.LinkByName(name)
+func (t *NativeTAP) SetIfMAC(hwaddr string) error {
+	dev, err := netlink.LinkByName(t.name)
+	if err != nil {
+		return err
+	}
+	haddr, err := net.ParseMAC(hwaddr)
+	if err != nil {
+		return err
+	}
+	return netlink.LinkSetHardwareAddr(dev, haddr)
+}
+
+func (t *NativeTAP) SetIfRoute(cidr string) error {
+	dev, err := netlink.LinkByName(t.name)
 	if err != nil {
 		return err
 	}
@@ -112,8 +105,8 @@ func setIfRoute(name, cidr string) error {
 	return netlink.AddrAdd(dev, addr)
 }
 
-func setIfUP(name string) error {
-	dev, err := netlink.LinkByName(name)
+func (t *NativeTAP) SetIfUP() error {
+	dev, err := netlink.LinkByName(t.name)
 	if err != nil {
 		return err
 	}
