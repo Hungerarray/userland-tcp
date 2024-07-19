@@ -21,10 +21,12 @@ func NewNetDev(name, addr, hwaddr string) (*NetDev, error) {
 	if err != nil {
 		return nil, err
 	}
+	// mac, err := net.ParseMAC(hwaddr)
 	mac, err := tap.SetIfMAC(hwaddr)
 	if err != nil {
 		return nil, err
 	}
+	// ip := net.ParseIP(addr)
 	ip, err := tap.SetIfRoute(addr)
 	if err != nil {
 		return nil, err
@@ -49,10 +51,10 @@ func (nd *NetDev) Write(b []byte) (int, error) {
 	return nd.tap.Write(b)
 }
 
-func (nd *NetDev) Transmit(ethFrame EthFrame, ethType []byte, dst []byte) error {
-	ethFrame.Header.Ethertype = ethType
-	ethFrame.Header.Smac = nd.HWAddr
-	ethFrame.Header.Dmac = dst
+// func (nd *NetDev) Transmit(ethFrame EthFrame, ethType []byte, dst []byte) error {
+// 	ethFrame.Header.Ethertype = ethType
+// 	ethFrame.Header.Smac = nd.HWAddr
+// 	ethFrame.Header.Dmac = dst
 
-	nd.Write([]byte(ethFrame))
-}
+// 	nd.Write([]byte(ethFrame))
+// }
