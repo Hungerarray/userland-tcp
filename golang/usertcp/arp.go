@@ -1,23 +1,47 @@
 package usertcp
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
+	"log/slog"
 	"net"
 )
 
 const (
-	ARPHeaderLength = 8
-	ARPv4Length     = 20
+	arpHeaderOffset = 0
+	arpHeaderLength = 8
+	arpV4Offset     = arpHeaderOffset + arpHeaderLength
+	arpV4Length     = 20
 )
 
 type (
-	Arp       []byte
-	ArpHeader []byte
-	ArpHWType uint16
-	ArpProto  uint16
-	ArpOpCode uint16
+	Arp []byte // -
+
+	ArpHeader []byte // --
+	ArpHWType uint16 // ---
+	ArpProto  uint16 // ---
+	ArpOpCode uint16 // ---
+
+	ArpV4 []byte // --
 )
+
+func (a Arp) Header() ArpHeader {
+	return ArpHeader(a[arpHeaderOffset:][:arpHeaderLength])
+}
+
+func (a Arp) ArpIPv4Payload() ArpV4 {
+	return ArpV4(a[arpV4Offset:][:arpV4Length])
+}
+
+func (a Arp) IsValid() bool {
+	return a.Header().IsValid()
+}
+
+func NewArp(h ArpHeader, payload []byte) Arp {
+	b := append(h[:arpHeaderLength], payload...)
+	return Arp(b)
+}
 
 // list of ARP Hardware Types still in use
 const (
@@ -25,6 +49,19 @@ const (
 	ArpHWTypeIEEE802Networks ArpHWType = 6
 	ArpHWTypeATM             ArpHWType = 16
 )
+
+func (a ArpHWType) String() string {
+	switch a {
+	case ArpHWTypeEthernet:
+		return "Ethernet"
+	case ArpHWTypeIEEE802Networks:
+		return "IEEE 802 Network"
+	case ArpHWTypeATM:
+		return "ATM"
+	default:
+		return "N/A"
+	}
+}
 
 // list of ARP Opcodes still in use
 // we most probably won't encounter RARP on
@@ -36,6 +73,21 @@ const (
 	RARPReply   ArpOpCode = 4
 )
 
+func (a ArpOpCode) String() string {
+	switch a {
+	case ArpRequest:
+		return "ARP Request"
+	case ArpReply:
+		return "ARP Reply"
+	case RARPRequest:
+		return "RARP Request"
+	case RARPReply:
+		return "RARP Reply"
+	default:
+		return "N/A"
+	}
+}
+
 // list of ARP Protocols,
 // shared with EthernetType
 const (
@@ -44,12 +96,35 @@ const (
 	ArpRARP ArpProto = 0x8035
 )
 
+func (a ArpProto) String() string {
+	switch a {
+	case ArpIPv4:
+		return "IPv4"
+	case ArpARP:
+		return "Arp"
+	case ArpRARP:
+		return "RARP"
+	default:
+		return "N/A"
+	}
+}
+
 // todo: Add further validations
 // currently we are only dealing with
 // Ethernet headers, Our interface should
 // have no way of getting other type of packets
 func (a ArpHeader) IsValid() bool {
-	return len(a) >= ARPHeaderLength
+	return len(a) >= arpHeaderLength
+}
+
+func (a ArpHeader) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("Hardware Type", a.HWType().String()),
+		slog.String("Prototype", a.Prototype().String()),
+		slog.Int("Hardware Size", int(a.HWSize())),
+		slog.Int("Prototype Size", int(a.PrototypeSize())),
+		slog.String("Opcode", a.Opcode().String()),
+	)
 }
 
 // errors
@@ -57,6 +132,7 @@ var (
 	ErrMalformedArpHeader      = errors.New("malformed arp header")
 	ErrUnsupportedArpHWType    = errors.New("unsupported ARP HW Type")
 	ErrUnsupportedArpPrototype = errors.New("unsupported ARP Prototype")
+	ErrInvalidArpRequestOpcode = errors.New("expected to have ARP request opcode")
 
 	ErrMalformedArpV4Data = errors.New("malformed arp v4 data")
 )
@@ -94,6 +170,10 @@ func (a ArpHeader) Data() []byte {
 	return a[arpDataOffset:]
 }
 
+func (a ArpHeader) SetOpcode(c ArpOpCode) {
+	binary.BigEndian.PutUint16(a[arpOpCodeOffset:], uint16(c))
+}
+
 const (
 	arpV4SourceMACOffset = 0
 	arpV4SourceIP        = arpV4SourceMACOffset + MACAddrLength
@@ -101,10 +181,8 @@ const (
 	arpV4DestinationIP   = arpV4DestinationMAC + MACAddrLength
 )
 
-type ArpV4 []byte
-
 func (a ArpV4) IsValid() bool {
-	return len(a) >= ARPv4Length
+	return len(a) >= arpV4Length
 }
 
 func (a ArpV4) SourceMAC() net.HardwareAddr {
@@ -121,4 +199,15 @@ func (a ArpV4) DestinationMAC() net.HardwareAddr {
 
 func (a ArpV4) DestinationIP() net.IP {
 	return net.IP(a[arpV4DestinationIP:][:IPv4AddrLength])
+}
+
+func (a ArpV4) UpdateCopy(smac, dmac net.HardwareAddr, sip, dip net.IP) ArpV4 {
+	buf := bytes.Clone(a)
+
+	copy(buf[arpV4SourceMACOffset:], smac)
+	copy(buf[arpV4SourceIP:], sip)
+	copy(buf[arpV4DestinationMAC:], dmac)
+	copy(buf[arpV4DestinationIP:], dip)
+
+	return buf
 }

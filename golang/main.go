@@ -1,9 +1,10 @@
 package main
 
 import (
-	"encoding/hex"
 	"linux-networking/usertcp"
 	"log"
+	"log/slog"
+	"os"
 )
 
 const (
@@ -12,33 +13,42 @@ const (
 )
 
 func main() {
-	netDev, err := usertcp.NewNetDev("tap1", devAddr, macAddr)
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	var ac usertcp.ArpCache
+	netDev, err := usertcp.NewNetDev("tap1", devAddr, macAddr, ac, logger)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	for {
-		var buf [1024]byte
-		count, err := netDev.Read(buf[:])
+		frame, err := usertcp.ReadEthFrame(netDev)
 		if err != nil {
-			log.Fatalf("[error]: %s\n", err.Error())
-		}
-		log.Printf("[info]: got %d bytes, %s\n", count, hex.EncodeToString(buf[:count]))
-		ethFrame := usertcp.EthFrame(buf[:count])
-		if err != nil {
-			log.Printf("[warn]: failed to parse ethernet header")
+			logger.Warn("failed to parse ethernet header")
 			continue
 		}
 
-		log.Printf("[info]: Parsed Ethernet header, %s", ethFrame.Header())
-		// replace the src and destination
-		// addr, err := net.ParseMAC(macAddr)
-		// if err != nil {
-		// 	panic("malformed mac address")
-		// }
-		// h := usertcp.CreateEthHeder(ethFrame.Header.Smac, addr, ethFrame.Header.Ethertype)
-		// b := usertcp.CreateEthFrame(h, make([]byte, 0))
+		fHeader := frame.Header()
+		logger.Info("parsed Ethernet Header",
+			slog.Any("ethHeader", fHeader),
+		)
 
-		// netDev.Write(b)
+		switch fHeader.EtherType() {
+		case usertcp.EthArp:
+			arp := usertcp.Arp(frame.Payload())
+			if !arp.IsValid() {
+				logger.Warn("invalid arp packet, dropped packet")
+			}
+			aHeader := arp.Header()
+			logger.Info("parsed ARP header",
+				slog.Any("arpHeader", aHeader),
+			)
+			netDev.HandleArp(arp)
+
+		case usertcp.EthIPv4:
+		case usertcp.EthIPv6:
+		case usertcp.EthRARP:
+		default:
+			logger.Warn("unknown ethernet type, dropped frame")
+		}
 	}
 }

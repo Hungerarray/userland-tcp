@@ -5,17 +5,29 @@ import (
 	"net"
 )
 
+// Local ARP Cache entry containing
+// SourceIP and SourceMAC as well as
+// the HWType of the device
+//
+// (- ? possible addition of timeouts for more
+// resillient infra)
 type ArpCacheEntry struct {
-	HWType    ArpHWType
 	SourceIP  net.IP
 	SourceMAC net.HardwareAddr
+	HWType    ArpHWType
 }
 
+// Local ArpCache List
+// uses double linked list
+// from [container/list] package.
+//
+// The zero value of this struct is an arp cache ready to use
 type ArpCache struct {
 	entries list.List
 }
 
-func (a *ArpCache) InsertArpTranslationTable4(hdr ArpHeader, a4 ArpV4) {
+// Insert an IPv4 Arp request into ARP table
+func (a *ArpCache) InsertArpTable(hdr ArpHeader, a4 ArpV4) {
 	arpEntry := ArpCacheEntry{
 		HWType:    hdr.HWType(),
 		SourceIP:  a4.SourceIP(),
@@ -25,7 +37,8 @@ func (a *ArpCache) InsertArpTranslationTable4(hdr ArpHeader, a4 ArpV4) {
 	a.entries.PushBack(&arpEntry)
 }
 
-func (a *ArpCache) UpdateArpTranslationTable(hdr ArpHeader, a4 ArpV4) bool {
+// Update existing IPv4 ARP table entry
+func (a *ArpCache) UpdateArpTable(hdr ArpHeader, a4 ArpV4) bool {
 	for e := a.entries.Front(); e != nil; e = e.Next() {
 		v, ok := e.Value.(*ArpCacheEntry)
 		if !ok {

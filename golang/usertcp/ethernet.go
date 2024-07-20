@@ -1,11 +1,18 @@
 package usertcp
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"strings"
+)
+
+const (
+	MaxEthFrameSize = 1518
 )
 
 const (
@@ -23,11 +30,11 @@ const (
 // this is not a complete list and just a selection
 // of Ethernet types
 const (
-	EthIPv4       EthType = 0x0800
-	EthArp        EthType = 0x0806
-	EthRARP       EthType = 0x8035
-	EthIPv6       EthType = 0x86dd
-	EthVirtualLAn EthType = 0x8100
+	EthIPv4 EthType = 0x0800
+	EthArp  EthType = 0x0806
+	EthRARP EthType = 0x8035
+	EthIPv6 EthType = 0x86dd
+	// EthVirtualLan EthType = 0x8100
 )
 
 type (
@@ -41,6 +48,16 @@ type (
 
 func (f EthFrame) Header() EthHeader {
 	return EthHeader(f[:ethHeaderLen])
+}
+
+func NewEthHeader(smac, dmac net.HardwareAddr, ethType EthType) EthHeader {
+	var buf [ethHeaderLen]byte
+
+	copy(buf[ethSmacOffset:], smac)
+	copy(buf[ethDmacOffset:], dmac)
+	binary.BigEndian.PutUint16(buf[ethTypeOffset:], uint16(ethType))
+
+	return buf[:]
 }
 
 func (f EthFrame) Payload() []byte {
@@ -96,4 +113,29 @@ func (ethH EthHeader) String() string {
 	s.WriteString("=== Eth Header end ===\n")
 
 	return s.String()
+}
+
+func (eth EthHeader) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("Destination MAC", eth.Dmac().String()),
+		slog.String("Source MAC", eth.Smac().String()),
+		slog.String("Ethernet Type", eth.EtherType().String()),
+	)
+}
+
+func ReadEthFrame(r io.Reader) (EthFrame, error) {
+	var buf [MaxEthFrameSize]byte
+	count, err := r.Read(buf[:])
+	if err != nil {
+		return nil, err
+	}
+
+	frame := EthFrame(bytes.Clone(buf[:count]))
+	return frame, err
+}
+
+func TrasmitEthFrame(ethHeader EthHeader, payload []byte, w io.Writer) error {
+	buf := append(ethHeader, payload...)
+	_, err := w.Write(buf)
+	return err
 }
