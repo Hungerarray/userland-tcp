@@ -19,9 +19,25 @@ const (
 	ethTypeOffset = ethSmacOffset + MACAddrLength
 )
 
-type EthType uint16
+// list of Ethernet Types
+// this is not a complete list and just a selection
+// of Ethernet types
+const (
+	EthIPv4       EthType = 0x0800
+	EthArp        EthType = 0x0806
+	EthRARP       EthType = 0x8035
+	EthIPv6       EthType = 0x86dd
+	EthVirtualLAn EthType = 0x8100
+)
 
-type EthFrame []byte
+type (
+	// Ethernet frame
+	EthFrame []byte
+	// Ethernet frame header
+	EthHeader []byte
+	// Ethernet frame type
+	EthType uint16
+)
 
 func (f EthFrame) Header() EthHeader {
 	return EthHeader(f[:ethHeaderLen])
@@ -34,8 +50,6 @@ func (f EthFrame) Payload() []byte {
 func (f EthFrame) IsValid() bool {
 	return f.Header().IsValid()
 }
-
-type EthHeader []byte
 
 func (hdr EthHeader) IsValid() bool {
 	// check to see if we can add more validations

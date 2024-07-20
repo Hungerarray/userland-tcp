@@ -19,7 +19,35 @@ type (
 	ArpOpCode uint16
 )
 
+// list of ARP Hardware Types still in use
+const (
+	ArpHWTypeEthernet        ArpHWType = 1
+	ArpHWTypeIEEE802Networks ArpHWType = 6
+	ArpHWTypeATM             ArpHWType = 16
+)
+
+// list of ARP Opcodes still in use
+// we most probably won't encounter RARP on
+// our test playground
+const (
+	ArpRequest  ArpOpCode = 1
+	ArpReply    ArpOpCode = 2
+	RARPRequest ArpOpCode = 3
+	RARPReply   ArpOpCode = 4
+)
+
+// list of ARP Protocols,
+// shared with EthernetType
+const (
+	ArpIPv4 ArpProto = 0x0800
+	ArpARP  ArpProto = 0x0806
+	ArpRARP ArpProto = 0x8035
+)
+
 // todo: Add further validations
+// currently we are only dealing with
+// Ethernet headers, Our interface should
+// have no way of getting other type of packets
 func (a ArpHeader) IsValid() bool {
 	return len(a) >= ARPHeaderLength
 }
