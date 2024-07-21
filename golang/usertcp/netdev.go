@@ -20,6 +20,13 @@ type NetDev struct {
 	HWAddr net.HardwareAddr
 }
 
+func (n NetDev) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("IP", n.Addr.String()),
+		slog.String("MAC", n.HWAddr.String()),
+	)
+}
+
 func NewNetDev(name, addr, hwaddr string, cache ArpCache, logger *slog.Logger) (*NetDev, error) {
 	tap, err := CreateIfTAP(name, 1500)
 	if err != nil {
@@ -29,7 +36,11 @@ func NewNetDev(name, addr, hwaddr string, cache ArpCache, logger *slog.Logger) (
 	if err != nil {
 		return nil, err
 	}
-	ip, err := tap.SetIfRoute(addr)
+	ip, _, err := net.ParseCIDR(addr)
+	if err != nil {
+		return nil, err
+	}
+	_, err = tap.SetIfRoute(addr)
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +91,11 @@ func (nd *NetDev) HandleArp(arp Arp) error {
 func (nd *NetDev) ReplyArp(arp Arp) error {
 	data := arp.ArpIPv4Payload()
 	payload := data.UpdateCopy(nd.HWAddr, data.SourceMAC(), nd.Addr, data.SourceIP())
+	nd.logger.Info("ARP reply payload", slog.Any("payload", payload))
+
 	arpH := arp.Header()
 	arpH.SetOpcode(ArpReply)
+	nd.logger.Info("ARP reply header", slog.Any("Header", arpH))
 
 	reply := NewArp(arpH, payload)
 	ethH := NewEthHeader(nd.HWAddr, data.SourceMAC(), EthArp)

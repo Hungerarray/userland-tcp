@@ -15,10 +15,14 @@ const (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	var ac usertcp.ArpCache
+
 	netDev, err := usertcp.NewNetDev("tap1", devAddr, macAddr, ac, logger)
 	if err != nil {
 		log.Fatal(err)
 	}
+	logger.Info("created net NetDev device",
+		slog.Any("NetDev", netDev),
+	)
 
 	for {
 		frame, err := usertcp.ReadEthFrame(netDev)

@@ -205,9 +205,18 @@ func (a ArpV4) UpdateCopy(smac, dmac net.HardwareAddr, sip, dip net.IP) ArpV4 {
 	buf := bytes.Clone(a)
 
 	copy(buf[arpV4SourceMACOffset:], smac)
-	copy(buf[arpV4SourceIP:], sip)
+	copy(buf[arpV4SourceIP:], sip.To4())
 	copy(buf[arpV4DestinationMAC:], dmac)
 	copy(buf[arpV4DestinationIP:], dip)
 
 	return buf
+}
+
+func (a ArpV4) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("Source MAC", a.SourceMAC().String()),
+		slog.String("Source IP", a.SourceIP().String()),
+		slog.String("Destination MAC", a.DestinationMAC().String()),
+		slog.String("Destination IP", a.DestinationIP().String()),
+	)
 }
