@@ -79,6 +79,7 @@ func (nd *NetDev) HandleArp(arp Arp) error {
 		return nil
 	}
 
+	// missing RARP
 	switch aHdr.Opcode() {
 	case ArpRequest:
 		nd.logger.Info("handling ARP request")
